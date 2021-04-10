@@ -12,7 +12,7 @@ func NewCounter() *Counter {
 		quit:       make(chan int8),
 		count:      0,
 	}
-	toRet.begin()
+	go toRet.begin()
 	return toRet
 }
 

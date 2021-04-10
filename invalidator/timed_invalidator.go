@@ -52,6 +52,6 @@ func (t *timedInvalidator) IsValid(data *Metadata) bool {
 	return max >= time.Now().Add(-1*t.lifetime).Unix()
 }
 
-//do i need this?
 func (t *timedInvalidator) Stop() {
+	t.counter.Stop()
 }
