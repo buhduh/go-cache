@@ -2,120 +2,196 @@ package cache
 
 import (
 	"fmt"
-	"sync"
+	"github.com/buhduh/go-cache/datahandler"
+	"github.com/buhduh/go-cache/invalidator"
 	"time"
 )
 
-func NewInMemoryCache(lifetime *time.Duration) Cacher {
-	quit := make(chan int8)
-	cache := &inMemoryCache{
-		store:    new(sync.Map),
-		lifetime: lifetime,
-		quit:     quit,
-	}
-	//sooooo weird, there's GOT to be a better way to do this...
-	//circular reference...
-	cache.reaper = newReaper(cache, quit)
-	return cache
+type cache struct {
+	dataHandler datahandler.DataHandler
+	invalidator invalidator.Invalidator
+	quit        chan int8
 }
 
 type Cacher interface {
-	Put(string, interface{}) error
+	Clear()
 	Get(string, ...interface{}) (interface{}, error)
-	Clear() error
+	Put(string, interface{}) (interface{}, error)
 	Remove(string) (interface{}, error)
+	Destroy()
 }
 
-type ValueNotPresentError struct {
-	Key string
-}
-
-func (v ValueNotPresentError) Error() string {
-	return fmt.Sprintf("no value found for key '%s'", v.Key)
-}
-
-type inMemoryCache struct {
-	lifetime *time.Duration
-	store    *sync.Map
-	reaper   *reaperTracker
-	quit     chan<- int8
+func NewCache(
+	dataHandler datahandler.DataHandler,
+	invalidator invalidator.Invalidator,
+) Cacher {
+	toRet := &cache{
+		dataHandler: dataHandler,
+		invalidator: invalidator,
+		quit:        make(chan int8),
+	}
+	go toRet.begin()
+	return toRet
 }
 
 type cacheElement struct {
-	value  *interface{}
-	ticker *time.Ticker
+	data     interface{}
+	metadata invalidator.Metadata
 }
 
-func (c *cacheElement) unPack() interface{} {
-	return *(c.value)
+func (c *cache) Clear() {
+	c.invalidator.Stop()
+	c.dataHandler.Clear()
 }
 
-func (i *inMemoryCache) newElem(data interface{}) *cacheElement {
-	elem := new(cacheElement)
-	if i.lifetime != nil {
-		elem.ticker = time.NewTicker(*i.lifetime)
+func (c *cache) Put(key string, data interface{}) (interface{}, error) {
+	found, err := c.dataHandler.Get(key)
+	if err != nil {
+		if !datahandler.IsValueNotPresentError(err) {
+			return nil, err
+		}
+	} else if found != nil {
+		fCacheElem, ok := found.(cacheElement)
+		if !ok {
+			return nil, fmt.Errorf(
+				"cache may be corrupt, found something for key '%s', but can't unpack it",
+				key,
+			)
+		} else {
+			c.invalidator.Update(&fCacheElem.metadata)
+			toRet := fCacheElem.data
+			fCacheElem.data = data
+			c.dataHandler.Put(key, fCacheElem)
+			return toRet, nil
+		}
 	}
-	elem.value = &data
-	return elem
-}
-
-func castCacheElement(element interface{}) (*cacheElement, bool) {
-	toRet, ok := element.(*cacheElement)
-	return toRet, ok
-}
-
-func (i *inMemoryCache) Put(key string, data interface{}) error {
-	elem := i.newElem(data)
-	i.store.Store(key, elem)
-	go i.reaper.resetOrAddTimer(key, i.lifetime)
-	return nil
-}
-
-func (i *inMemoryCache) Get(key string, data ...interface{}) (interface{}, error) {
-	var rawElem interface{}
-	if len(data) == 0 {
-		rawElem, _ = i.store.Load(key)
-	} else if len(data) == 1 {
-		toStoreData := data[0]
-		elem := i.newElem(toStoreData)
-		rawElem, _ = i.store.LoadOrStore(key, elem)
-	} else {
+	if can := c.invalidator.CanCreate(key, data); !can {
 		return nil, fmt.Errorf(
-			"only one item can be cached with InMemoryCache.Get(), attempted to store %d items",
+			"unabled to create element with key: '%s', and value: '%v'",
+			key, data,
+		)
+	}
+	metadata := invalidator.Metadata{}
+	c.invalidator.Create(&metadata)
+	err = c.dataHandler.Put(
+		key,
+		cacheElement{
+			data:     data,
+			metadata: metadata,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (c *cache) Get(key string, data ...interface{}) (interface{}, error) {
+	if len(data) > 1 {
+		return nil, fmt.Errorf(
+			"only a single value can be sent to Get to be cached as a default, attemped to pass %d items",
 			len(data),
 		)
 	}
-	if rawElem == nil {
-		return nil, ValueNotPresentError{Key: key}
+	found, err := c.dataHandler.Get(key)
+	if err != nil {
+		//new element
+		ok := datahandler.IsValueNotPresentError(err)
+		if ok {
+			if len(data) == 1 {
+				if can := c.invalidator.CanCreate(key, data[0]); !can {
+					return nil, fmt.Errorf(
+						"unable to create element with key, '%s' and value '%v'",
+						key, data[0],
+					)
+				}
+				metadata := invalidator.Metadata{}
+				c.invalidator.Create(&metadata)
+				putErr := c.dataHandler.Put(
+					key,
+					cacheElement{
+						data:     data[0],
+						metadata: metadata,
+					},
+				)
+				if putErr != nil {
+					return nil, putErr
+				} else {
+					return data[0], nil
+				}
+			} else {
+				return nil, err
+			}
+		}
 	}
-	var elem *cacheElement
-	var ok bool
-	if elem, ok = castCacheElement(rawElem); !ok {
-		return nil, fmt.Errorf("could not cast cached value for key '%s' to a *cacheElement", key)
-	}
-	go i.reaper.resetOrAddTimer(key, i.lifetime)
-	return elem.unPack(), nil
-}
-
-func (i *inMemoryCache) Clear() error {
-	//I hope this actually recovers memory...
-	i.store = new(sync.Map)
-	close(i.quit)
-	newQuit := make(chan int8)
-	i.reaper = newReaper(i, newQuit)
-	i.quit = newQuit
-	return nil
-}
-
-func (i *inMemoryCache) Remove(key string) (interface{}, error) {
-	rawElem, ok := i.store.LoadAndDelete(key)
-	go i.reaper.remove(key)
+	foundCacheElem, ok := found.(cacheElement)
 	if !ok {
-		return nil, ValueNotPresentError{Key: key}
+		return nil, fmt.Errorf(
+			"cache may be corrupt, found something for key '%s', but can't unpack it",
+			key,
+		)
 	}
-	var elem *cacheElement
-	if elem, ok = castCacheElement(rawElem); !ok {
-		return nil, fmt.Errorf("could not cast cached value for key '%s' to a *cachedElement", key)
+	c.invalidator.Access(&foundCacheElem.metadata)
+	err = c.dataHandler.Put(key, foundCacheElem)
+	return foundCacheElem.data, err
+}
+
+func (c *cache) Remove(key string) (interface{}, error) {
+	found, err := c.dataHandler.Get(key)
+	if err != nil {
+		return nil, err
 	}
-	return elem.unPack(), nil
+	if found == nil {
+		return nil, datahandler.ValueNotPresentError{
+			Key: key,
+		}
+	}
+	err = c.dataHandler.Remove(key)
+	if err != nil {
+		return nil, err
+	}
+	cElem, ok := found.(cacheElement)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cache may be corrupt, found something for key '%s', but can't unpack it",
+			key,
+		)
+	}
+	c.invalidator.Remove(&cElem.metadata)
+	return cElem.data, nil
+}
+
+func (c *cache) Destroy() {
+	c.dataHandler.Clear()
+	c.invalidator.Stop()
+	close(c.quit)
+}
+
+func (c *cache) begin() {
+	cb := func(key string, val interface{}) bool {
+		select {
+		case <-c.quit:
+			return false
+		default:
+		}
+		elem, ok := val.(cacheElement)
+		if !ok {
+			return true
+		}
+		if !c.invalidator.IsValid(&elem.metadata) {
+			c.dataHandler.Remove(key)
+		}
+		return true
+	}
+	dur, _ := time.ParseDuration("500ms")
+	myTicker := time.NewTicker(dur)
+	for {
+		select {
+		case <-c.quit:
+			myTicker.Stop()
+			return
+		case <-myTicker.C:
+			c.dataHandler.Range(cb)
+		}
+	}
 }
