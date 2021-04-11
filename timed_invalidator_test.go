@@ -1,4 +1,4 @@
-package invalidator
+package cache
 
 import (
 	"testing"
@@ -91,6 +91,5 @@ func TestTimedInvalidator(t *testing.T) {
 				tCase.name, i, tCase.exp, res,
 			)
 		}
-		inv.Stop()
 	}
 }
