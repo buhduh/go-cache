@@ -11,6 +11,7 @@ var testCases = []*struct {
 	durStr string
 	exp    bool
 }{
+	//huh?
 	{
 		name: "create",
 		tData: &Metadata{
@@ -87,8 +88,8 @@ func TestTimedInvalidator(t *testing.T) {
 		inv := NewTimedInvalidator(dur)
 		if res := inv.IsValid(tCase.tData); res != tCase.exp {
 			t.Errorf(
-				"test '%s', index %d -- expected %t, got %t",
-				tCase.name, i, tCase.exp, res,
+				"test '%s', index %d -- expected %t, got %t, ptr: %p",
+				tCase.name, i, tCase.exp, res, inv,
 			)
 		}
 	}
