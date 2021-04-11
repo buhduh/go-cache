@@ -7,6 +7,8 @@ func main() {
 	newItem, _ := myCache.Get("foo", 42)
 	found, _ := myCache.Get("foo")
 	if newItem.(int) != found.(int) {
-		println("this won't happen")
+		println("not equal")
+	} else {
+		println("equal")
 	}
 }

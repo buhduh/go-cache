@@ -1,7 +1,8 @@
 package cache
 
 import (
-//"testing"
+	//"testing"
+	"fmt"
 )
 
 /*
@@ -84,6 +85,9 @@ func ExampleNewInMemoryDataHandler() {
 	newItem, _ := myCache.Get("foo", 42)
 	found, _ := myCache.Get("foo")
 	if newItem.(int) != found.(int) {
-		println("this won't happen")
+		fmt.Println("not equal")
+	} else {
+		fmt.Println("equal")
 	}
+	// Output: equal
 }

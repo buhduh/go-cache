@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -93,4 +94,20 @@ func TestTimedInvalidator(t *testing.T) {
 			)
 		}
 	}
+}
+
+func ExampleNewTimedInvalidator() {
+	lifetime, _ := time.ParseDuration(".5s")
+	myCache := NewCache(nil, NewTimedInvalidator(lifetime))
+	myCache.Put("foo", "a string")
+	oneSec, _ := time.ParseDuration("1s")
+	// IsValid is run every half second, make sure enough time has passed.
+	time.Sleep(2 * oneSec)
+	item, err := myCache.Get("foo")
+	if item != nil || !IsValueNotPresentError(err) {
+		fmt.Println("won't see this")
+	} else {
+		fmt.Println("expired")
+	}
+	// Output: expired
 }
