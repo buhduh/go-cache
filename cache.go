@@ -2,14 +2,12 @@ package cache
 
 import (
 	"fmt"
-	"github.com/buhduh/go-cache/datahandler"
-	"github.com/buhduh/go-cache/invalidator"
 	"time"
 )
 
 type cache struct {
-	dataHandler datahandler.DataHandler
-	invalidator invalidator.Invalidator
+	dataHandler DataHandler
+	reaper      *Reaper
 	quit        chan int8
 }
 
@@ -22,12 +20,14 @@ type Cacher interface {
 }
 
 func NewCache(
-	dataHandler datahandler.DataHandler,
-	invalidator invalidator.Invalidator,
+	dataHandler DataHandler,
+	inv Invalidator,
+	accessCB, createCB,
+	updateCB ExtraCallback,
 ) Cacher {
 	toRet := &cache{
 		dataHandler: dataHandler,
-		invalidator: invalidator,
+		reaper:      NewReaper(inv, accessCB, createCB, updateCB),
 		quit:        make(chan int8),
 	}
 	go toRet.begin()
@@ -36,18 +36,18 @@ func NewCache(
 
 type cacheElement struct {
 	data     interface{}
-	metadata invalidator.Metadata
+	metadata Metadata
 }
 
 func (c *cache) Clear() {
-	c.invalidator.Stop()
+	c.reaper.Clear()
 	c.dataHandler.Clear()
 }
 
 func (c *cache) Put(key string, data interface{}) (interface{}, error) {
 	found, err := c.dataHandler.Get(key)
 	if err != nil {
-		if !datahandler.IsValueNotPresentError(err) {
+		if !IsValueNotPresentError(err) {
 			return nil, err
 		}
 	} else if found != nil {
@@ -58,21 +58,15 @@ func (c *cache) Put(key string, data interface{}) (interface{}, error) {
 				key,
 			)
 		} else {
-			c.invalidator.Update(&fCacheElem.metadata)
+			c.reaper.Update(&fCacheElem.metadata)
 			toRet := fCacheElem.data
 			fCacheElem.data = data
 			c.dataHandler.Put(key, fCacheElem)
 			return toRet, nil
 		}
 	}
-	if can := c.invalidator.CanCreate(key, data); !can {
-		return nil, fmt.Errorf(
-			"unabled to create element with key: '%s', and value: '%v'",
-			key, data,
-		)
-	}
-	metadata := invalidator.Metadata{}
-	c.invalidator.Create(&metadata)
+	metadata := Metadata{}
+	c.reaper.Create(&metadata)
 	err = c.dataHandler.Put(
 		key,
 		cacheElement{
@@ -96,17 +90,11 @@ func (c *cache) Get(key string, data ...interface{}) (interface{}, error) {
 	found, err := c.dataHandler.Get(key)
 	if err != nil {
 		//new element
-		ok := datahandler.IsValueNotPresentError(err)
+		ok := IsValueNotPresentError(err)
 		if ok {
 			if len(data) == 1 {
-				if can := c.invalidator.CanCreate(key, data[0]); !can {
-					return nil, fmt.Errorf(
-						"unable to create element with key, '%s' and value '%v'",
-						key, data[0],
-					)
-				}
-				metadata := invalidator.Metadata{}
-				c.invalidator.Create(&metadata)
+				metadata := Metadata{}
+				c.reaper.Create(&metadata)
 				putErr := c.dataHandler.Put(
 					key,
 					cacheElement{
@@ -131,7 +119,7 @@ func (c *cache) Get(key string, data ...interface{}) (interface{}, error) {
 			key,
 		)
 	}
-	c.invalidator.Access(&foundCacheElem.metadata)
+	c.reaper.Access(&foundCacheElem.metadata)
 	err = c.dataHandler.Put(key, foundCacheElem)
 	return foundCacheElem.data, err
 }
@@ -142,7 +130,7 @@ func (c *cache) Remove(key string) (interface{}, error) {
 		return nil, err
 	}
 	if found == nil {
-		return nil, datahandler.ValueNotPresentError{
+		return nil, ValueNotPresentError{
 			Key: key,
 		}
 	}
@@ -157,13 +145,13 @@ func (c *cache) Remove(key string) (interface{}, error) {
 			key,
 		)
 	}
-	c.invalidator.Remove(&cElem.metadata)
+	c.reaper.Remove()
 	return cElem.data, nil
 }
 
 func (c *cache) Destroy() {
 	c.dataHandler.Clear()
-	c.invalidator.Stop()
+	c.reaper.Clear()
 	close(c.quit)
 }
 
@@ -178,8 +166,9 @@ func (c *cache) begin() {
 		if !ok {
 			return true
 		}
-		if !c.invalidator.IsValid(&elem.metadata) {
+		if !c.reaper.IsValid(&elem.metadata) {
 			c.dataHandler.Remove(key)
+			c.reaper.Remove()
 		}
 		return true
 	}

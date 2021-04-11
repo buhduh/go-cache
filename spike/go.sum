@@ -1,2 +1,4 @@
 github.com/buhduh/go-cache v0.0.0-20210410210501-2a2bf2aa6bd0 h1:xUOiBEi8f3zQp6IoyBVSIlJMF3vLU788CLYJXhdrtvI=
 github.com/buhduh/go-cache v0.0.0-20210410210501-2a2bf2aa6bd0/go.mod h1:jomxR0A7046viTgmOgfLlAvxXqcdmAU7tEa0uLl7Ows=
+github.com/buhduh/go-cache v0.0.0-20210411082703-e2e5554b733b h1:UT7C3GX2uKnDFVnqgkGOpJAhgyFHLwIkRBH1dDAZZxg=
+github.com/buhduh/go-cache v0.0.0-20210411082703-e2e5554b733b/go.mod h1:jomxR0A7046viTgmOgfLlAvxXqcdmAU7tEa0uLl7Ows=
