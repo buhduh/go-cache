@@ -1,6 +1,6 @@
 # cache
 --
-    import "."
+    import "github.com/buhduh/go-cache"
 
 Package cache provides a modifiable thread safe cache system that separates
 concerns along the way data is stored in the backend with the DataHandler
