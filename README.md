@@ -6,6 +6,40 @@ Package cache provides a modifiable thread safe cache system that separates
 concerns along the way data is stored in the backend with the DataHandler
 interface and when/how data is validated with the Invalidator interface.
 
+## Examples
+
+```
+func ExampleNewTimedInvalidator() {
+	lifetime, _ := time.ParseDuration(".5s")
+	myCache := NewCache(nil, NewTimedInvalidator(lifetime))
+	myCache.Put("foo", "a string")
+	oneSec, _ := time.ParseDuration("1s")
+	// IsValid is run every half second, make sure enough time has passed.
+	time.Sleep(2 * oneSec)
+	item, err := myCache.Get("foo")
+	if item != nil || !IsValueNotPresentError(err) {
+		fmt.Println("won't see this")
+	} else {
+		fmt.Println("expired")
+	}
+	// Output: expired
+}
+
+func ExampleNewInMemoryDataHandler() {
+	// InMemoryDataHandler is the default.
+	// could also do: NewCache(NewInMemoryDataHandler(), nil)
+	myCache := NewCache(nil, nil)
+	newItem, _ := myCache.Get("foo", 42)
+	found, _ := myCache.Get("foo")
+	if newItem.(int) != found.(int) {
+		fmt.Println("not equal")
+	} else {
+		fmt.Println("equal")
+	}
+	// Output: equal
+}
+```
+
 ## Usage
 
 #### func  IsValueNotPresentError
