@@ -4,24 +4,34 @@ import (
 	"time"
 )
 
+// Metadata is primarily used by Invalidator to determine if
+// a cache item is valid.  Invalidator.AccessExtra, Invalidator.CreateExtra, and Invalidator.UpdateExtra
+// are intended to modify the Extra field in Metadata.
 type Metadata struct {
+	// KeyCount is a thread safe pointer to the total count of the cache
+	// KeyCount is managed in a background go routine.
 	KeyCount *int64
-	Created  int64
+	// Created is a Unix time stamp when an item was originally inserted into the cache.
+	Created int64
+	// Accessed is a Unix time stamp of the last time an item was retrieved with Cacher.Get
 	Accessed int64
+	// Modified is a Unix time stamp of the last time an item was modfied with Cacher.Put
 	Modified int64
-	Extra    interface{}
+	// Extra provides a means for an outside implementation of Invalidator to determine
+	// if an item is valid.
+	Extra interface{}
 }
 
 type metadataHelper struct {
 	keyCounter     chan int8
 	quit           chan int8
 	count          int64
-	accessCallback ExtraCallback
-	createCallback ExtraCallback
-	updateCallback ExtraCallback
+	accessCallback func(*Metadata)
+	createCallback func(*Metadata)
+	updateCallback func(*Metadata)
 }
 
-func newMetadataHelper(accessCB, createCB, updateCB ExtraCallback) *metadataHelper {
+func newMetadataHelper(accessCB, createCB, updateCB func(*Metadata)) *metadataHelper {
 	toRet := &metadataHelper{
 		keyCounter:     make(chan int8),
 		quit:           make(chan int8),

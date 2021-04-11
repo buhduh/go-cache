@@ -1,84 +1,93 @@
 package cache
 
 import (
-//"testing"
+	//"testing"
+	"fmt"
 )
-
-//im tired, pretty sure this works...
 
 /*
 func TestCache(t *testing.T) {
-	t.Run("Get", testGet)
-}
-
-var getTestCases = []*struct {
-	name    string
-	handler dummyHandler
-	keys    []string
-	vals    []interface{}
-}{
-	{
-		name:    "one element",
-		handler: map[string]interface{}{
-      "key": "val",
-    },
-		keys:    []string{"foo"},
-		vals:    []interface{}{"val"},
-	},
-}
-
-func testGet(t *testing.T) {
-  for i, tCase := range getTestCases {
-    if len(tCase.keys) != len(tCase.vals) {
-      t.Errorf("len(tCase.keys) != len(tCase.vals)")
-    }
-    tCache := NewCache(tCase.handler, &NopInvalidator{}, nil, nil, nil)
-    for j, key := range tCase.keys {
-      if res, err := tCache.Get(key);
-    }
-  }
-}
-
-type dummyHandler map[string]interface{}
-
-func (d dummyHandler) Put(key string, data interface{}) error {
-	d[key] = data
-	return nil
-}
-
-//Must throw a ValueNotPresentError and be nil
-func (d dummyHandler) Get(key string) (interface{}, error) {
-	var toRet interface{}
-	var ok bool
-	if toRet, ok = d[key]; !ok || toRet == nil {
-		return nil, ValueNotPresentError{Key: key}
+	//huh?
+	dur, _ := time.ParseDuration("1s")
+	myCache := NewCache(
+		NewInMemoryDataHandler(),
+		NewTimedInvalidator(dur),
+		nil, nil, nil,
+	)
+	got, err := myCache.Get("foo", 42)
+	if err != nil {
+		t.Errorf("shouldn't have error'd, got '%s'\n", err)
 	}
-	return toRet, nil
-}
-
-func (d dummyHandler) Clear() error {
-	for k, _ := range d {
-		delete(d, k)
+	if got == nil {
+		t.Errorf("result shouldn't be nil")
+	} else if res, ok := got.(int); !ok || res != 42 {
+		t.Errorf("shold have gotten 42")
 	}
-	return nil
-}
-
-//Must throw a ValueNotPresentError
-func (d dummyHandler) Remove(key string) error {
-	var toRet interface{}
-	var ok bool
-	if toRet, ok = d[key]; !ok || toRet == nil {
-		return ValueNotPresentError{Key: key}
+	got, err = myCache.Get("foo", 3)
+	if err != nil {
+		t.Errorf("shouldn't have error'd, got '%s'\n", err)
 	}
-	delete(d, key)
-	return nil
-}
-
-func (d dummyHandler) Range(cb func(string, interface{}) bool) {
-	for k, v := range d {
-		if !cb(k, v) {
-			return
-		}
+	if got == nil {
+		t.Errorf("result shouldn't be nil")
+	} else if res, ok := got.(int); !ok || res != 42 {
+		t.Errorf("shold have gotten 42")
+	}
+	got, err = myCache.Remove("foo")
+	if err != nil {
+		t.Errorf("shouldn't have error'd, got '%s'\n", err)
+	}
+	if got == nil {
+		t.Errorf("result shouldn't be nil")
+	} else if res, ok := got.(int); !ok || res != 42 {
+		t.Errorf("shold have gotten 42")
+	}
+	got, err = myCache.Put("foo", 3)
+	if err != nil {
+		t.Errorf("shouldn't have error'd, got '%s'\n", err)
+	}
+	if got != nil {
+		t.Errorf("should be nil\n")
+	}
+	got, err = myCache.Put("foo", 10)
+	if err != nil {
+		t.Errorf("shouldn't have error'd, got '%s'\n", err)
+	}
+	if got == nil {
+		t.Errorf("result shouldn't be nil")
+	} else if res, ok := got.(int); !ok || res != 3 {
+		t.Errorf("shold have gotten 3")
+	}
+	got, err = myCache.Get("foo", 3)
+	if err != nil {
+		t.Errorf("shouldn't have error'd, got '%s'\n", err)
+	}
+	if got == nil {
+		t.Errorf("result shouldn't be nil")
+	} else if res, ok := got.(int); !ok || res != 10 {
+		t.Errorf("shold have gotten 10")
+	}
+	oneSec, _ := time.ParseDuration("2s")
+	time.Sleep(oneSec)
+	got, err = myCache.Get("foo")
+	if err != nil && !IsValueNotPresentError(err) {
+		t.Errorf("Get should return ValueNotPresentError")
+	}
+	if got != nil {
+		t.Errorf("Get() should be nil: %v", got)
 	}
 }
 */
+
+func ExampleNewInMemoryDataHandler() {
+	// InMemoryDataHandler is the default.
+	// could also do: NewCache(NewInMemoryDataHandler(), nil)
+	myCache := NewCache(nil, nil)
+	newItem, _ := myCache.Get("foo", 42)
+	found, _ := myCache.Get("foo")
+	if newItem.(int) != found.(int) {
+		fmt.Println("not equal")
+	} else {
+		fmt.Println("equal")
+	}
+	// Output: equal
+}

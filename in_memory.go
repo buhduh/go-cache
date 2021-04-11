@@ -4,14 +4,15 @@ import (
 	"sync"
 )
 
-type inMemory struct {
-	store *sync.Map
-}
-
+// NewInMemoryDataHandler returns a Datahandler that is backed with a sync.Map.
 func NewInMemoryDataHandler() DataHandler {
 	return &inMemory{
 		store: new(sync.Map),
 	}
+}
+
+type inMemory struct {
+	store *sync.Map
 }
 
 func (i *inMemory) Put(key string, data interface{}) error {
