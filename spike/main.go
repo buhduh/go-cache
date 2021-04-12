@@ -1,14 +1,25 @@
 package main
 
-import cache "github.com/buhduh/go-cache"
+import (
+	"fmt"
+)
+
+type fooError struct{}
+
+func (f fooError) Error() string {
+	return "foo"
+}
+
+func isFooError(err error) bool {
+	_, ok := err.(fooError)
+	return ok
+}
 
 func main() {
-	myCache := cache.NewCache(nil, nil)
-	newItem, _ := myCache.Get("foo", 42)
-	found, _ := myCache.Get("foo")
-	if newItem.(int) != found.(int) {
-		println("not equal")
+	var err error = nil
+	if isFooError(err) {
+		fmt.Println("isFooError")
 	} else {
-		println("equal")
+		fmt.Println("not isFooError")
 	}
 }

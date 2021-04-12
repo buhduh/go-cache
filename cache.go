@@ -16,7 +16,7 @@ type Cacher interface {
 	// provided, will set the cache to that value if nothing is present
 	// returns a ValueNotPresentError if no value was found at key.
 	Get(string, ...interface{}) (interface{}, error)
-	// Put a value at key
+	// Put a value at key, returns the previous value if present
 	Put(string, interface{}) (interface{}, error)
 	// Remove a single item, returning the item or a ValueNotPresentError
 	// if no item is present.
@@ -27,15 +27,11 @@ type Cacher interface {
 
 // NewCache returns a Cacher Interface whose behavior is determined by
 // datahandler and inv.
-func NewCache(
-	// if nil, an InMemoryDataHandler will be used.
-	dataHandler DataHandler,
-	// if nil, a nopInvalidator will be used that maintains
-	// Metadata consistently and IsValid always returns true.
-	inv Invalidator,
-) Cacher {
+// dataHandler defaults to an inMmeoryCache when nil.
+// inv defaults to a NopInvalidator when nil.
+func NewCache(dataHandler DataHandler, inv Invalidator) Cacher {
 	if inv == nil {
-		inv = &nopInvalidator{}
+		inv = &NopInvalidator{}
 	}
 	if dataHandler == nil {
 		dataHandler = NewInMemoryDataHandler()
@@ -106,15 +102,23 @@ func IsValueNotPresentError(err error) bool {
 	return ok
 }
 
-type nopInvalidator struct{}
+// NopInvalidator is the default invalidator. Maintains metadata in a consistent state.
+// If nil is passed to NewCache, that cache's invalidator will be a NopInvalidator.
+type NopInvalidator struct{}
 
-func (n *nopInvalidator) IsValid(*Metadata) bool {
+// IsValid always returns true.
+func (n *NopInvalidator) IsValid(*Metadata) bool {
 	return true
 }
 
-func (n *nopInvalidator) AccessExtra(*Metadata) {}
-func (n *nopInvalidator) CreateExtra(*Metadata) {}
-func (n *nopInvalidator) UpdateExtra(*Metadata) {}
+// AccessExtra does nothing, satisfies the Invalidator interface.
+func (n *NopInvalidator) AccessExtra(*Metadata) {}
+
+// CreateExtra does nothing, satisfies the Invalidator interface.
+func (n *NopInvalidator) CreateExtra(*Metadata) {}
+
+// UpdateExtra does nothing, satisfies the Invalidator interface.
+func (n *NopInvalidator) UpdateExtra(*Metadata) {}
 
 type reaper struct {
 	*metadataHelper

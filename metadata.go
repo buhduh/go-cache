@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -11,15 +12,27 @@ type Metadata struct {
 	// KeyCount is a thread safe pointer to the total count of the cache
 	// KeyCount is managed in a background go routine.
 	KeyCount *int64
-	// Created is a Unix time stamp when an item was originally inserted into the cache.
-	Created int64
 	// Accessed is a Unix time stamp of the last time an item was retrieved with Cacher.Get
 	Accessed int64
+	// Created is a Unix time stamp when an item was originally inserted into the cache.
+	Created int64
 	// Modified is a Unix time stamp of the last time an item was modfied with Cacher.Put
 	Modified int64
 	// Extra provides a means for an outside implementation of Invalidator to determine
 	// if an item is valid.
 	Extra interface{}
+}
+
+func (m Metadata) String() string {
+	return fmt.Sprintf(
+		`{
+  "KeyCount": %d,
+  "Accessed": %d,
+  "Created": %d,
+  "Modified": %d,
+  "Extra": "%#v"
+}`,
+		m.KeyCount, m.Accessed, m.Created, m.Modified, m.Extra)
 }
 
 type metadataHelper struct {
@@ -46,7 +59,9 @@ func newMetadataHelper(accessCB, createCB, updateCB func(*Metadata)) *metadataHe
 
 func (m *metadataHelper) Create(data *Metadata) {
 	m.keyCounter <- 1
+	data.Accessed = -1
 	data.Created = time.Now().Unix()
+	data.Modified = -1
 	data.KeyCount = m.getCount()
 	if m.createCallback != nil {
 		m.createCallback(data)
