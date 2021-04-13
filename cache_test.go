@@ -13,6 +13,184 @@ import (
 func TestCache(t *testing.T) {
 	t.Run("method=Get", testGet)
 	t.Run("method=Put", testPut)
+	t.Run("method=Remove", testRemove)
+	t.Run("method=Clear", testClear)
+	t.Run("mechanic=Count", testCount)
+}
+
+func testCount(t *testing.T) {
+	handler := make(dummyHandler)
+	invalidator := new(dummyInvalidator)
+	myCache := NewCache(handler, invalidator)
+	for i := 0; i < 100; i++ {
+		myCache.Put(fmt.Sprintf("foo%d", i), i)
+	}
+	dur, _ := time.ParseDuration(".01s")
+	//give the counter enough time to iterate
+	time.Sleep(dur)
+	count := invalidator.getCount()
+	if *count != int64(100) {
+		t.Errorf("count not correct, expeted %d, got %d", 100, *count)
+	}
+	for i := 0; i < 50; i++ {
+		myCache.Remove(fmt.Sprintf("foo%d", i))
+	}
+	time.Sleep(dur)
+	count = invalidator.getCount()
+	if *count != int64(50) {
+		t.Errorf("count not correct, expeted %d, got %d", 50, *count)
+	}
+	myCache.Clear()
+	time.Sleep(dur)
+	count = invalidator.getCount()
+	if *count != int64(0) {
+		t.Errorf("count not correct, expeted %d, got %d", 0, *count)
+	}
+}
+
+func testClear(t *testing.T) {
+	handler := make(dummyHandler)
+	invalidator := new(dummyInvalidator)
+	myCache := NewCache(handler, invalidator)
+	handler["foo"] = cacheElement{
+		data: "foo",
+		metadata: Metadata{
+			Accessed: -1,
+			Created:  time.Now().Unix(),
+			Modified: -1,
+		},
+	}
+	handler["bar"] = cacheElement{
+		data: "bar",
+		metadata: Metadata{
+			Accessed: time.Now().Unix(),
+			Created:  time.Now().Unix() - 10,
+			Modified: -1,
+		},
+	}
+	handler["baz"] = cacheElement{
+		data: "baz",
+		metadata: Metadata{
+			Accessed: time.Now().Unix(),
+			Created:  time.Now().Unix() - 10,
+			Modified: -1,
+		},
+	}
+	myCache.Clear()
+	if len(handler) != 0 {
+		t.Errorf("Cacher.Clear() didn't remove all items, %d items remain", len(handler))
+	}
+}
+
+func testRemove(t *testing.T) {
+	handler := make(dummyHandler)
+	invalidator := new(dummyInvalidator)
+	myCache := NewCache(handler, invalidator)
+	handler["foo"] = cacheElement{
+		data: "foo",
+		metadata: Metadata{
+			Accessed: -1,
+			Created:  time.Now().Unix(),
+			Modified: -1,
+		},
+	}
+	handler["bar"] = cacheElement{
+		data: "bar",
+		metadata: Metadata{
+			Accessed: time.Now().Unix(),
+			Created:  time.Now().Unix() - 10,
+			Modified: -1,
+		},
+	}
+	handler["baz"] = cacheElement{
+		data: "baz",
+		metadata: Metadata{
+			Accessed: time.Now().Unix(),
+			Created:  time.Now().Unix() - 10,
+			Modified: -1,
+		},
+	}
+	foo, err := myCache.Remove("foo")
+	if err != nil {
+		t.Errorf("Cacher.Remove() should not have thrown an error, got '%s'", err)
+	}
+	if fooS, ok := foo.(string); !ok || fooS != "foo" {
+		if !ok {
+			t.Errorf("Cacher.Remove() did not return a string")
+		} else if fooS != "foo" {
+			t.Errorf(
+				"Cacher.Remove() did not return expected value, expected:'%s', got: '%s",
+				"foo", fooS,
+			)
+		} else {
+			t.Fatalf("Cacher.Remove() did something wrong and this test doesn't know what...")
+		}
+	}
+	foo, err = myCache.Remove("foo")
+	if err == nil || !IsValueNotPresentError(err) {
+		t.Errorf("Cacher.Remove() shouild have returned a ValueNotPresentError")
+	}
+	if foo != nil {
+		t.Errorf("Cacher.Remove() should have returned nil, returned: %#v", foo)
+	}
+	if _, ok := handler["bar"]; !ok {
+		t.Errorf("Cacher.Remove() removed more than is should have")
+	}
+	if _, ok := handler["baz"]; !ok {
+		t.Errorf("Cacher.Remove() removed more than is should have")
+	}
+	bar, err := myCache.Remove("bar")
+	if err != nil {
+		t.Errorf("Cacher.Remove() should not have thrown an error, got '%s'", err)
+	}
+	if barS, ok := bar.(string); !ok || barS != "bar" {
+		if !ok {
+			t.Errorf("Cacher.Remove() did not return a string")
+		} else if barS != "bar" {
+			t.Errorf(
+				"Cacher.Remove() did not return expected value, expected:'%s', got: '%s",
+				"bar", barS,
+			)
+		} else {
+			t.Fatalf("Cacher.Remove() did something wrong and this test doesn't know what...")
+		}
+	}
+	bar, err = myCache.Remove("bar")
+	if err == nil || !IsValueNotPresentError(err) {
+		t.Errorf("Cacher.Remove() shouild have returned a ValueNotPresentError")
+	}
+	if bar != nil {
+		t.Errorf("Cacher.Remove() should have returned nil, returned: %#v", bar)
+	}
+	if _, ok := handler["baz"]; !ok {
+		t.Errorf("Cacher.Remove() removed more than is should have")
+	}
+	baz, err := myCache.Remove("baz")
+	if err != nil {
+		t.Errorf("Cacher.Remove() should not have thrown an error, got '%s'", err)
+	}
+	if bazS, ok := baz.(string); !ok || bazS != "baz" {
+		if !ok {
+			t.Errorf("Cacher.Remove() did not return a string")
+		} else if bazS != "baz" {
+			t.Errorf(
+				"Cacher.Remove() did not return expected value, expected:'%s', got: '%s",
+				"baz", bazS,
+			)
+		} else {
+			t.Fatalf("Cacher.Remove() did something wrong and this test doesn't know what...")
+		}
+	}
+	baz, err = myCache.Remove("baz")
+	if err == nil || !IsValueNotPresentError(err) {
+		t.Errorf("Cacher.Remove() shouild have returned a ValueNotPresentError")
+	}
+	if baz != nil {
+		t.Errorf("Cacher.Remove() should have returned nil, returned: %#v", baz)
+	}
+	if len(handler) != 0 {
+		t.Errorf("there should not be any items left in the datahandler")
+	}
 }
 
 type simple struct {
@@ -81,18 +259,22 @@ func (d *dummyInvalidator) IsValid(*Metadata) bool {
 }
 
 func (d *dummyInvalidator) AccessExtra(data *Metadata) {
-	d.accessCalled += 1
+	d.accessCalled++
 	d.lastMetadata = *data
 }
 
 func (d *dummyInvalidator) CreateExtra(data *Metadata) {
-	d.createCalled += 1
+	d.createCalled++
 	d.lastMetadata = *data
 }
 
 func (d *dummyInvalidator) UpdateExtra(data *Metadata) {
-	d.updateCalled += 1
+	d.updateCalled++
 	d.lastMetadata = *data
+}
+
+func (d *dummyInvalidator) getCount() *int64 {
+	return d.lastMetadata.KeyCount
 }
 
 func (d *dummyInvalidator) checkExtras(state []int) bool {
@@ -239,12 +421,13 @@ func testGet(t *testing.T) {
 		Created:  time.Now().Unix(),
 		Modified: -1,
 	}
+	//get cache with a default, new item
 	foo, err := myCache.Get("foo", "bar")
 	if !invalidator.checkExtras([]int{0, 1, 0}) {
-		t.Errorf("Cacher.Put() extra function calls inconsistent")
+		t.Errorf("Cacher.Get() extra function calls inconsistent")
 	}
 	if !invalidator.checkMetadata(expData) {
-		t.Errorf("Cacher.Put() metadata is incorrect")
+		t.Errorf("Cacher.Get() metadata is incorrect")
 	}
 	if err != nil {
 		t.Errorf("Caaher.Get() should not have error'd, got '%s'", err)
@@ -259,18 +442,46 @@ func testGet(t *testing.T) {
 			)
 		}
 	}
+	expData.Accessed = time.Now().Unix()
+	foo, err = myCache.Get("foo")
+	if !invalidator.checkExtras([]int{1, 1, 0}) {
+		t.Errorf("Cacher.Get() extra function calls inconsistent")
+	}
+	if !invalidator.checkMetadata(expData) {
+		t.Errorf(
+			"Cacher.Get() metadata is incorrect\nexpected:\n%s\ngot:\n%s\n",
+			expData, invalidator.getMetadata(),
+		)
+	}
+	if err != nil {
+		t.Errorf("Cacher.Get() should not have error'd, got '%s'", err)
+	}
+	if val, ok := foo.(string); !ok || val != "bar" {
+		if !ok {
+			t.Errorf("Cacher.Get() did not return the expected type")
+		} else if val != "bar" {
+			t.Errorf(
+				"Cacher.Get() did nor return expected value, expected '%s', got '%s'",
+				"bar", val,
+			)
+		}
+	}
 	handler["bar"] = cacheElement{
 		data:     "baz",
 		metadata: Metadata{},
 	}
-	expData.Accessed = time.Now().Unix()
 	bar, err := myCache.Get("bar")
-	if !invalidator.checkExtras([]int{1, 1, 0}) {
-		t.Errorf("Cacher.Put() extra function calls inconsistent")
+	if !invalidator.checkExtras([]int{2, 1, 0}) {
+		t.Errorf("Cacher.Get() extra function calls inconsistent")
+	}
+	expData = Metadata{
+		Accessed: time.Now().Unix(),
+		Created:  0, //only create sets values to -1
+		Modified: 0, //only create sets values to -1
 	}
 	if !invalidator.checkMetadata(expData) {
 		t.Errorf(
-			"Cacher.Put() metadata is incorrect, expected:\n%s\ngot:\n%s\n",
+			"Cacher.Get() metadata is incorrect\nexpected:\n%s\ngot:\n%s\n",
 			expData, invalidator.getMetadata(),
 		)
 	}
@@ -288,14 +499,8 @@ func testGet(t *testing.T) {
 		}
 	}
 	val, err := myCache.Get("yolo")
-	if !invalidator.checkExtras([]int{1, 1, 0}) {
-		t.Errorf("Cacher.Put() extra function calls inconsistent")
-	}
-	if !invalidator.checkMetadata(expData) {
-		t.Errorf(
-			"Cacher.Put() metadata is incorrect, expected:\n%s\ngot:\n%s\n",
-			expData, invalidator.getMetadata(),
-		)
+	if !invalidator.checkExtras([]int{2, 1, 0}) {
+		t.Errorf("Cacher.Get() extra function calls inconsistent")
 	}
 	if !IsValueNotPresentError(err) {
 		if err == nil {
@@ -319,6 +524,13 @@ func pString(s string) *string {
 
 type dummyHandler map[string]interface{}
 
+func (d dummyHandler) addAnItem(key string, val interface{}, data Metadata) {
+	d[key] = cacheElement{
+		data:     val,
+		metadata: data,
+	}
+}
+
 func (d dummyHandler) Put(key string, value interface{}) error {
 	d[key] = value
 	return nil
@@ -334,7 +546,7 @@ func (d dummyHandler) Get(key string) (interface{}, error) {
 }
 
 func (d dummyHandler) Clear() error {
-	for k, _ := range d {
+	for k := range d {
 		delete(d, k)
 	}
 	return nil

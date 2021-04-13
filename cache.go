@@ -155,13 +155,12 @@ func (c *cache) Put(key string, data interface{}) (interface{}, error) {
 				"cache may be corrupt, found something for key '%s', but can't unpack it",
 				key,
 			)
-		} else {
-			c.reaper.Update(&fCacheElem.metadata)
-			toRet := fCacheElem.data
-			fCacheElem.data = data
-			c.dataHandler.Put(key, fCacheElem)
-			return toRet, nil
 		}
+		c.reaper.Update(&fCacheElem.metadata)
+		toRet := fCacheElem.data
+		fCacheElem.data = data
+		c.dataHandler.Put(key, fCacheElem)
+		return toRet, nil
 	}
 	metadata := Metadata{}
 	c.reaper.Create(&metadata)
@@ -202,12 +201,10 @@ func (c *cache) Get(key string, data ...interface{}) (interface{}, error) {
 				)
 				if putErr != nil {
 					return nil, putErr
-				} else {
-					return data[0], nil
 				}
-			} else {
-				return nil, err
+				return data[0], nil
 			}
+			return nil, err
 		}
 	}
 	foundCacheElem, ok := found.(cacheElement)
