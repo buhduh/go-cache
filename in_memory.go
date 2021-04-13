@@ -5,6 +5,7 @@ import (
 )
 
 // NewInMemoryDataHandler returns a Datahandler that is backed with a sync.Map.
+// This is the default DataHandler when nil is passed to NewCache.
 func NewInMemoryDataHandler() DataHandler {
 	return &inMemory{
 		store: new(sync.Map),

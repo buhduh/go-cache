@@ -1,3 +1,5 @@
 *.sw[a-z]
 *.bak
 todo.txt
+scratch
+build

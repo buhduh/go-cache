@@ -11,7 +11,7 @@ func TestReaper(t *testing.T) {
 }
 
 func testHelperFuncs(t *testing.T) {
-	reaper := newReaper(&nopInvalidator{})
+	reaper := newReaper(&NopInvalidator{})
 	mData := new(Metadata)
 	reaper.Create(mData)
 	if mData.Created != time.Now().Unix() {
@@ -49,7 +49,7 @@ func testHelperFuncs(t *testing.T) {
 }
 
 func testCounting(t *testing.T) {
-	reaper := newReaper(&nopInvalidator{})
+	reaper := newReaper(&NopInvalidator{})
 	mData := new(Metadata)
 	for i := 0; i < 200; i++ {
 		reaper.Create(mData)
